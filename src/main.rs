@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use axum::Router;
 use axum::routing::{delete, get, post};
-use crate::handlers::{create_repo, delete_repo, info_refs, rpc};
+use crate::handlers::{create_repo, delete_repo, get_repo_detail, info_refs, list_repos, rpc};
 use crate::models::AppState;
 use tokio::signal;
 mod models;
@@ -23,6 +23,9 @@ async fn main() {
         git_root,
     });
     let app: Router = Router::new()
+        .route("/repos/:repo_name", get(get_repo_detail))
+        .route("/repos", get(list_repos))
+        .route("/repo/:repo_name", get(get_repo_detail))
         .route("/:repo_name/info/refs", get(info_refs))
         .route("/:repo_name/:command", post(rpc))
         .route("/:repo_name", get(create_repo))
