@@ -5,7 +5,6 @@ use axum::{
 };
 use std::{
     collections::HashMap,
-    io::Write,
     process::{Command, Stdio},
     sync::Arc,
 };
@@ -15,6 +14,7 @@ use axum::Json;
 use serde::Serialize;
 use std::fs as std_fs;
 use crate::models::AppState;
+use tokio::io::AsyncWriteExt;
 
 // 定义仓库信息的结构体
 #[derive(Serialize)]
@@ -51,7 +51,7 @@ pub async fn list_repos(
     let mut repos = Vec::new();
 
     for entry_result in entries {
-        let entry = match entry_result {
+        let entry: std_fs::DirEntry = match entry_result {
             Ok(entry) => entry,
             Err(_) => continue,
         };
@@ -161,7 +161,7 @@ pub async fn rpc(
     };
 
     // 执行git命令
-    let mut child = match Command::new("git")
+    let mut child = match tokio::process::Command::new("git")
         .arg(git_command)
         .arg("--stateless-rpc") // 使用无状态RPC
         .arg(&repo_path)
@@ -178,7 +178,7 @@ pub async fn rpc(
 
     // 写入请求体到git命令的stdin
     if let Some(mut stdin) = child.stdin.take() {
-        if let Err(e) = stdin.write_all(body.as_ref()) {
+        if let Err(e) = stdin.write_all(body.as_ref()).await {
             eprintln!("Error writing to git stdin: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to git command stdin").into_response();
         }
@@ -187,7 +187,7 @@ pub async fn rpc(
     }
 
     // 读取git命令的stdout
-    let output = match child.wait_with_output() {
+    let output = match child.wait_with_output().await {
         Ok(output) => output,
         Err(e) => {
             eprintln!("Error waiting for git command: {}", e);
